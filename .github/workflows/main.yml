@@ -52,7 +52,6 @@ jobs:
           mkdir -p /home/runner/Arduino/libraries
           mv ESPAsyncWebServer /home/runner/Arduino/libraries/ESPAsyncWebServer
           mv AsyncTCP /home/runner/Arduino/libraries/AsyncTCP
-          mv SocketIoClient /home/runner/Arduino/libraries/SocketIoClient
 
       - name: Compile
         run: |
