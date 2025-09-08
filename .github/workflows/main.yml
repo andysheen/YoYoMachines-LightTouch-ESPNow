@@ -53,15 +53,22 @@ jobs:
           mv ESPAsyncWebServer /home/runner/Arduino/libraries/ESPAsyncWebServer
           mv AsyncTCP /home/runner/Arduino/libraries/AsyncTCP
 
+      # Compile into a build directory so ESP32 core 3.3.0 emits bootloader/bootloader.bin
       - name: Compile
         run: |
-          mkdir -p build
+          mkdir -p build_dir
           echo "Compiling ${{ github.repository }}..."
-          arduino-cli compile -v -b esp32:esp32:esp32 --build-properties build.partitions=minimal,upload.maximum_size=1966080 --output-dir build YoYoMachines-LightTouch-ESPNow
+          arduino-cli compile -v \
+            -b esp32:esp32:esp32 \
+            --build-properties build.partitions=minimal,upload.maximum_size=1966080 \
+            --build-path build_dir \
+            YoYoMachines-LightTouch-ESPNow
 
       - name: Create spiffs binary
         run: |
-          /home/runner/.arduino15/packages/esp32/tools/mkspiffs/0.2.3/mkspiffs -c YoYoMachines-LightTouch-ESPNow/data -b 4096 -p 256 -s 0xB0000 build/spiffs.bin
+          /home/runner/.arduino15/packages/esp32/tools/mkspiffs/0.2.3/mkspiffs \
+            -c YoYoMachines-LightTouch-ESPNow/data -b 4096 -p 256 -s 0xB0000 \
+            build_dir/spiffs.bin
 
       - name: Checkout esp_binary_merger
         uses: actions/checkout@v4
@@ -69,19 +76,34 @@ jobs:
           repository: vtunr/esp32_binary_merger
           path: esp32_binary_merger
 
+      # Find bootloader/app/partitions from build_dir and merge; copy outputs into build/
       - name: Merge binaries
+        shell: bash
         run: |
+          set -euo pipefail
+          BOOTLOADER="$(find build_dir -type f -path '*/bootloader/bootloader.bin' | head -n1 || true)"
+          APP_BIN="$(find build_dir -maxdepth 1 -type f -name '*.ino.bin' | head -n1 || true)"
+          PART_BIN="$(find build_dir -maxdepth 1 -type f -name '*.ino.partitions.bin' | head -n1 || true)"
+          SPIFFS_BIN="build_dir/spiffs.bin"
+
+          echo "BOOTLOADER: ${BOOTLOADER:-<none>}"
+          echo "APP_BIN   : ${APP_BIN:-<none>}"
+          echo "PART_BIN  : ${PART_BIN:-<none>}"
+          echo "SPIFFS_BIN: ${SPIFFS_BIN:-<none>}"
+
+          if [[ -z "${BOOTLOADER}" || -z "${APP_BIN}" || -z "${PART_BIN}" || ! -f "${SPIFFS_BIN}" ]]; then
+            echo "ERROR: One or more required binaries not found." >&2
+            exit 1
+          fi
+
           python esp32_binary_merger/merge_bin_esp.py \
             --output_name app-combined.bin \
-            --bin_path build/esp32.esp32.esp32/bootloader/bootloader.bin \
-              build/YoYoMachines-LightTouch-ESPNow.ino.partitions.bin \
-              build/YoYoMachines-LightTouch-ESPNow.ino.bin \
-              build/spiffs.bin \
+            --bin_path "${BOOTLOADER}" "${PART_BIN}" "${APP_BIN}" "${SPIFFS_BIN}" \
             --bin_address 0x1000 0x8000 0x10000 0x150000
+
+          mkdir -p build
           mv output/app-combined.bin build/app-combined.bin
-          mv build/YoYoMachines-LightTouch-ESPNow.ino.bin build/app.bin
-
-
+          cp "${APP_BIN}" build/app.bin
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
