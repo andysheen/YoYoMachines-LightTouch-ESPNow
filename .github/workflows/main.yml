@@ -73,10 +73,15 @@ jobs:
         run: |
           python esp32_binary_merger/merge_bin_esp.py \
             --output_name app-combined.bin \
-            --bin_path /home/runner/.arduino15/packages/esp32/hardware/esp32/3.3.0/tools/sdk/esp32/bin/bootloader_dio_80m.bin build/YoYoMachines-LightTouch-ESPNow.ino.partitions.bin build/YoYoMachines-LightTouch-ESPNow.ino.bin build/spiffs.bin \
+            --bin_path build/esp32.esp32.esp32/bootloader/bootloader.bin \
+              build/YoYoMachines-LightTouch-ESPNow.ino.partitions.bin \
+              build/YoYoMachines-LightTouch-ESPNow.ino.bin \
+              build/spiffs.bin \
             --bin_address 0x1000 0x8000 0x10000 0x150000
           mv output/app-combined.bin build/app-combined.bin
           mv build/YoYoMachines-LightTouch-ESPNow.ino.bin build/app.bin
+
+
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
